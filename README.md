@@ -130,3 +130,288 @@ async任务等sync任务执行完释放 而sync在等async执行完释放 相互
 #### 换成 GCD 里的语言就是说：
 1 异步执行 + 并发队列 就是：系统开启了多个线程（主线程+其他子线程），任务可以多个同时运行。
 2 同步执行 + 并发队列 就是：系统只默认开启了一个主线程，没有开启子线程，虽然任务处于并发队列中，但也只能一个接一个执行了。
+
+## GCD的基本使用
+### 同步任务+并发队列
+```
+/**
+ * 同步执行 + 并发队列
+ * 特点：在当前线程中执行任务，不会开启新线程，执行完一个任务，再执行下一个任务。
+ */
+- (void)syncConcurrent {
+    NSLog(@"currentThread---%@",[NSThread currentThread]);  // 打印当前线程
+    NSLog(@"syncConcurrent---begin");
+    
+    dispatch_queue_t queue = dispatch_queue_create("net.bujige.testQueue", DISPATCH_QUEUE_CONCURRENT);
+    
+    dispatch_sync(queue, ^{
+        // 追加任务 1
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"1---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    
+    dispatch_sync(queue, ^{
+        // 追加任务 2
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"2---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    
+    dispatch_sync(queue, ^{
+        // 追加任务 3
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"3---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    
+    NSLog(@"syncConcurrent---end");
+}
+```
+print 1 2 3 不开启新的线程 mainThread
+### 同步执行 + 并发队列可以看出
+所有任务都是在当前线程（主线程）中执行的，没有开启新的线程（同步执行不具备开启新线程的能力）
+所有任务都在打印的 syncConcurrent---begin 和 syncConcurrent---end 之间执行的（同步任务 需要等待队列的任务执行结束）
+任务按顺序执行的。按顺序执行的原因：虽然 并发队列 可以开启多个线程，并且同时执行多个任务。但是因为本身不能创建新线程，只有当前线程这一个线程（同步任务 不具备开启新线程的能力），所以也就不存在并发。而且当前线程只有等待当前队列中正在执行的任务执行完毕之后，才能继续接着执行下面的操作（同步任务 需要等待队列的任务执行结束）。所以任务只能一个接一个按顺序执行，不能同时被执行。
+
+### 异步执行 + 并发队列
+```
+/**
+ * 异步执行 + 并发队列
+ * 特点：可以开启多个线程，任务交替（同时）执行。
+ */
+- (void)asyncConcurrent {
+    NSLog(@"currentThread---%@",[NSThread currentThread]);  // 打印当前线程
+    NSLog(@"asyncConcurrent---begin");
+    
+    dispatch_queue_t queue = dispatch_queue_create("net.bujige.testQueue", DISPATCH_QUEUE_CONCURRENT);
+    
+    dispatch_async(queue, ^{
+        // 追加任务 1
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"1---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    
+    dispatch_async(queue, ^{
+        // 追加任务 2
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"2---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    
+    dispatch_async(queue, ^{
+        // 追加任务 3
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"3---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    
+    NSLog(@"asyncConcurrent---end");
+}
+```
+print 2 3 1 (mainThread otherThread otherThread otherThread otherThread mainThread)
+
+### 异步执行+并发队列中可以看出
+除了当前线程（主线程），系统又开启了 3 个线程，并且任务是交替/同时执行的。（异步执行 具备开启新线程的能力。且 并发队列 可开启多个线程，同时执行多个任务）
+所有任务是在打印的 syncConcurrent---begin 和 syncConcurrent---end 之后才执行的。说明当前线程没有等待，而是直接开启了新线程，在新线程中执行任务（异步执行 不做等待，可以继续执行任务）
+
+### 同步执行+串行队列
+不会开启新线程，在当前线程执行任务。任务是串行的，执行完一个任务，再执行下一个任务。
+```
+/**
+ * 同步执行 + 串行队列
+ * 特点：不会开启新线程，在当前线程执行任务。任务是串行的，执行完一个任务，再执行下一个任务。
+ */
+- (void)syncSerial {
+    NSLog(@"currentThread---%@",[NSThread currentThread]);  // 打印当前线程
+    NSLog(@"syncSerial---begin");
+    
+    dispatch_queue_t queue = dispatch_queue_create("net.bujige.testQueue", DISPATCH_QUEUE_SERIAL);
+    
+    dispatch_sync(queue, ^{
+        // 追加任务 1
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"1---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    dispatch_sync(queue, ^{
+        // 追加任务 2
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"2---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    dispatch_sync(queue, ^{
+        // 追加任务 3
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"3---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    
+    NSLog(@"syncSerial---end");
+}
+
+```
+print begin 1 2 3 end 全部在currentThread
+### 在 同步执行 + 串行队列 可以看到：
+所有任务都是在当前线程（主线程）中执行的，并没有开启新的线程（同步执行 不具备开启新线程的能力）。
+所有任务都在打印的 syncConcurrent---begin 和 syncConcurrent---end 之间执行（同步任务 需要等待队列的任务执行结束）。
+任务是按顺序执行的（串行队列 每次只有一个任务被执行，任务一个接一个按顺序执行）。
+###  异步执行 + 串行队列
+会开启新线程，但是因为任务是串行的，执行完一个任务，再执行下一个任务
+```
+/**
+ * 异步执行 + 串行队列
+ * 特点：会开启新线程，但是因为任务是串行的，执行完一个任务，再执行下一个任务。
+ */
+- (void)asyncSerial {
+    NSLog(@"currentThread---%@",[NSThread currentThread]);  // 打印当前线程
+    NSLog(@"asyncSerial---begin");
+    
+    dispatch_queue_t queue = dispatch_queue_create("net.bujige.testQueue", DISPATCH_QUEUE_SERIAL);
+    
+    dispatch_async(queue, ^{
+        // 追加任务 1
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"1---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    dispatch_async(queue, ^{
+        // 追加任务 2
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"2---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    dispatch_async(queue, ^{
+        // 追加任务 3
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"3---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    
+    NSLog(@"asyncSerial---end");
+}
+```
+print begin 1 2 3 end mainThread otherThread otherThread otherThread  mainThread
+ ### 在 异步执行 + 串行队列 可以看到：
+ 开启了一条新线程（异步执行 具备开启新线程的能力，串行队列 只开启一个线程）。
+ 所有任务是在打印的 syncConcurrent---begin 和 syncConcurrent---end 之后才开始执行的（异步执行 不会做任何等待，可以继续执行任务）。
+ 任务是按顺序执行的（串行队列 每次只有一个任务被执行，任务一个接一个按顺序执行）。
+
+ ### 同步执行 + 主队列
+ 同步执行 + 主队列 在不同线程中调用结果也是不一样，在主线程中调用会发生死锁问题，而在其他线程中调用则不会。
+
+ 互相等待卡住不可行
+ ```
+ /**
+ * 同步执行 + 主队列
+ * 特点(主线程调用)：互等卡主不执行。
+ * 特点(其他线程调用)：不会开启新线程，执行完一个任务，再执行下一个任务。
+ */
+- (void)syncMain {
+    
+    NSLog(@"currentThread---%@",[NSThread currentThread]);  // 打印当前线程
+    NSLog(@"syncMain---begin");
+    
+    dispatch_queue_t queue = dispatch_get_main_queue();
+    
+    dispatch_sync(queue, ^{
+        // 追加任务 1
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"1---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    
+    dispatch_sync(queue, ^{
+        // 追加任务 2
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"2---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    
+    dispatch_sync(queue, ^{
+        // 追加任务 3
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"3---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    
+    NSLog(@"syncMain---end");
+}
+ ```
+ print begin lldb crash
+ ### 在主线程中使用 同步执行 + 主队列 可以惊奇的发现：
+ 追加到主线程的任务 1、任务 2、任务 3 都不再执行了，而且 syncMain---end 也没有打印，在 XCode 9 及以上版本上还会直接报崩溃。这是为什么呢？
+ 这是因为我们在主线程中执行 syncMain 方法，相当于把 syncMain 任务放到了主线程的队列中。而 同步执行 会等待当前队列中的任务执行完毕，才会接着执行。那么当我们把 任务 1 追加到主队列中，任务 1 就在等待主线程处理完 syncMain 任务。而syncMain 任务需要等待 任务 1 执行完毕，才能接着执行
+
+那么，现在的情况就是 syncMain 任务和 任务 1 都在等对方执行完毕。这样大家互相等待，所以就卡住了，所以我们的任务执行不了，而且 syncMain---end 也没有打印。
+要是如果不在主线程中调用，而在其他线程中调用会如何呢？
+### 在其他线程中调用同步执行 + 主队列
+不会开启新线程，执行完一个任务，再执行下一个任务
+```
+// 使用 NSThread 的 detachNewThreadSelector 方法会创建线程，并自动启动线程执行 selector 任务
+[NSThread detachNewThreadSelector:@selector(syncMain) toTarget:self withObject:nil];
+```
+print  begin 1 2 3 end 全部在mainThread
+### 在其他线程中使用 同步执行 + 主队列 可看到
+所有任务都是在主线程（非当前线程）中执行的，没有开启新的线程（所有放在主队列中的任务，都会放到主线程中执行）
+所有任务都在打印的 syncConcurrent---begin 和 syncConcurrent---end 之间执行（同步任务 需要等待队列的任务执行结束）
+任务是按顺序执行的（主队列是 串行队列，每次只有一个任务被执行，任务一个接一个按顺序执行）
+为什么现在就不会卡住了呢？
+因为syncMain 任务 放到了其他线程里，而 任务 1、任务 2、任务3 都在追加到主队列中，这三个任务都会在主线程中执行。syncMain 任务 在其他线程中执行到追加 任务 1 到主队列中，因为主队列现在没有正在执行的任务，所以，会直接执行主队列的 任务1，等 任务1 执行完毕，再接着执行 任务 2、任务 3。所以这里不会卡住线程，也就不会造成死锁问题
+
+### 异步执行 + 主队列
+只在主线程中执行任务，执行完一个任务，再执行下一个任务。
+```
+/**
+ * 异步执行 + 主队列
+ * 特点：只在主线程中执行任务，执行完一个任务，再执行下一个任务
+ */
+- (void)asyncMain {
+    NSLog(@"currentThread---%@",[NSThread currentThread]);  // 打印当前线程
+    NSLog(@"asyncMain---begin");
+    
+    dispatch_queue_t queue = dispatch_get_main_queue();
+    
+    dispatch_async(queue, ^{
+        // 追加任务 1
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"1---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    
+    dispatch_async(queue, ^{
+        // 追加任务 2
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"2---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    
+    dispatch_async(queue, ^{
+        // 追加任务 3
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"3---%@",[NSThread currentThread]);      // 打印当前线程
+    });
+    
+    NSLog(@"asyncMain---end");
+}
+```
+print begin end 1 2 3 全部在 mainThread
+### 在 异步执行 + 主队列 可以看到：
+所有任务都是在当前线程（主线程）中执行的，并没有开启新的线程（虽然 异步执行 具备开启线程的能力，但因为是主队列，所以所有任务都在主线程中）。
+所有任务是在打印的 syncConcurrent---begin 和 syncConcurrent---end 之后才开始执行的（异步执行不会做任何等待，可以继续执行任务）。
+任务是按顺序执行的（因为主队列是 串行队列，每次只有一个任务被执行，任务一个接一个按顺序执行）。
+
+## GCD 线程间的通信
+在 iOS 开发过程中，我们一般在主线程里边进行 UI 刷新，例如：点击、滚动、拖拽等事件。我们通常把一些耗时的操作放在其他线程，比如说图片下载、文件上传等耗时操作。而当我们有时候在其他线程完成了耗时操作时，需要回到主线程，那么就用到了线程之间的通讯
+/**
+ * 线程间通信
+ */
+- (void)communication {
+    // 获取全局并发队列
+    dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+    // 获取主队列
+    dispatch_queue_t mainQueue = dispatch_get_main_queue();
+    
+    dispatch_async(queue, ^{
+        // 异步追加任务 1
+        [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+        NSLog(@"1---%@",[NSThread currentThread]);      // 打印当前线程
+        
+        // 回到主线程
+        dispatch_async(mainQueue, ^{
+            // 追加在主线程中执行的任务
+            [NSThread sleepForTimeInterval:2];              // 模拟耗时操作
+            NSLog(@"2---%@",[NSThread currentThread]);      // 打印当前线程
+        });
+    });
+}
+
+print begin end 1 2
+可以看到在其他线程中先执行任务，执行完了之后回到主线程执行主线程的相应操作。
+
+
+

@@ -794,3 +794,215 @@ semaphore 初始创建时计数为 0。
 
 ```
 可以看出，在考虑了线程安全的情况下，使用 dispatch_semaphore 机制之后，得到的票数是正确的，没有出现混乱的情况。我们也就解决了多个线程同步的问题。
+
+## pthread and NSThread
+### pthread 简介
+pthread 是一套通用的多线程的 API，可以在Unix / Linux / Windows 等系统跨平台使用，使用 C 语言编写，需要程序员自己管理线程的生命周期
+### pthread使用方法
+引入`#import<pthread.h>`
+创建线程并开启线程执行任务
+```
+- (void)createThread{
+    //创建线程
+    pthread_t thread;
+    // 2. 开启线程: 执行任务
+    pthread_create(&thread, NULL, run, NULL);
+    //3. 设置子线程的状态设置为 detached，该线程运行结束后会自动释放所有资源;
+    pthread_detach(thread);
+    
+}
+void *run(void *param) {
+    NSLog(@"%@",[NSThread currentThread]);
+    return NULL;
+}
+```
+`pthread_create(&thread, NULL, run, NULL)`; 中各项参数含义：
+第一个参数&thread是线程对象，指向线程标识符的指针
+第二个是线程属性，可赋值NULL
+第三个run表示指向函数的指针(run对应函数里是需要在新线程中执行的任务)
+第四个是运行函数的参数，可赋值NULL
+### pthread 其他相关方法
+`pthread_create()` 创建一个线程
+`pthread_exit()` 终止当前线程
+`pthread_cancel()`中断另外一个线程的运行
+`pthread_join()` 阻塞当前的线程，直到另外一个线程运行结束
+`pthread_attr_init()` 初始化线程的属性
+`pthread_attr_setdetachstate()` 设置脱离状态的属性（决定这个线程在终止时是否可以被结合）
+`pthread_attr_getdetachstate()` 获取脱离状态的属性
+`pthread_attr_destroy()` 删除线程的属性
+`pthread_kill()` 向线程发送一个信号
+## NSThread
+### 创建启动线程
+```
+- (void)createNSThread {
+    NSThread *thread = [[NSThread alloc]initWithTarget:self selector:@selector(runMethod) object:nil];
+    [thread start];
+}
+- (void)runMethod {
+    NSLog(@"%@", [NSThread currentThread]);
+}
+```
+### 创建后自动启动线程
+```
+[NSThread detachNewThreadSelector:@selector(runMethod) toTarget:self withObject:nil];
+```
+### 隐式创建并启动线程
+```
+// 1. 隐式创建并启动线程
+[self performSelectorInBackground:@selector(run) withObject:nil];
+
+// 新线程调用方法，里边为需要执行的任务
+- (void)run {
+     NSLog(@"%@", [NSThread currentThread]);
+}
+```
+### 线程相关用法
+```
+// 获得主线程
++ (NSThread *)mainThread;    
+
+// 判断是否为主线程(对象方法)
+- (BOOL)isMainThread;
+
+// 判断是否为主线程(类方法)
++ (BOOL)isMainThread;    
+
+// 获得当前线程
+NSThread *current = [NSThread currentThread];
+
+// 线程的名字——setter方法
+- (void)setName:(NSString *)n;    
+
+// 线程的名字——getter方法
+- (NSString *)name;   
+```
+### 线程状态控制方法
+### 启动线程
+```
+- (void)start;
+// 线程进入就绪状态 -> 运行状态。当线程任务执行完毕，自动进入死亡状态
+```
+#### 阻塞（暂停）线程方法
+```
++ (void)sleepUntilDate:(NSDate *)date;
++ (void)sleepForTimeInterval:(NSTimeInterval)ti;
+// 线程进入阻塞状态
+```
+### 强制停止线程
+```
++ (void)exit;
+// 线程进入死亡状态
+```
+### 线程之间的通信
+在开发中，我们经常会在子线程进行耗时操作，操作结束后再回到主线程去刷新 UI。这就涉及到了子线程和主线程之间的通信。我们先来了解一下官方关于 NSThread 的线程间通信的方法。
+```
+// 在主线程上执行操作
+- (void)performSelectorOnMainThread:(SEL)aSelector withObject:(id)arg waitUntilDone:(BOOL)wait;
+- (void)performSelectorOnMainThread:(SEL)aSelector withObject:(id)arg waitUntilDone:(BOOL)wait modes:(NSArray<NSString *> *)array;
+  // equivalent to the first method with kCFRunLoopCommonModes
+
+// 在指定线程上执行操作
+- (void)performSelector:(SEL)aSelector onThread:(NSThread *)thr withObject:(id)arg waitUntilDone:(BOOL)wait modes:(NSArray *)array NS_AVAILABLE(10_5, 2_0);
+- (void)performSelector:(SEL)aSelector onThread:(NSThread *)thr withObject:(id)arg waitUntilDone:(BOOL)wait NS_AVAILABLE(10_5, 2_0);
+
+// 在当前线程上执行操作，调用 NSObject 的 performSelector:相关方法
+- (id)performSelector:(SEL)aSelector;
+- (id)performSelector:(SEL)aSelector withObject:(id)object;
+- (id)performSelector:(SEL)aSelector withObject:(id)object1 withObject:(id)object2;
+```
+#### 例子 在一个线程里面下载图片 然后在主线程刷新UI
+```
+/**
+ * 创建一个线程下载图片
+ */
+- (void)downloadImageOnSubThread {
+    // 在创建的子线程中调用downloadImage下载图片
+    [NSThread detachNewThreadSelector:@selector(downloadImage) toTarget:self withObject:nil];
+}
+
+/**
+ * 下载图片，下载完之后回到主线程进行 UI 刷新
+ */
+- (void)downloadImage {
+    NSLog(@"current thread -- %@", [NSThread currentThread]);
+    // 1. 获取图片 imageUrl
+    NSURL *imageUrl = [NSURL URLWithString:@"http://image.baidu.com/search/detail?z=0&word=%E8%82%96%E5%85%A8&hs=0&pn=2&spn=0&di=0&pi=44224719004&tn=baiduimagedetail&is=0%2C0&ie=utf-8&oe=utf-8&cs=1569301697%2C174686899&os=&simid=&adpicid=0&lpn=0&fm=&sme=&cg=&bdtype=-1&oriquery=&objurl=http%3A%2F%2Fe.hiphotos.baidu.com%2Fimage%2Fpic%2Fitem%2Fdc54564e9258d1092f7663c9db58ccbf6c814d30.jpg&fromurl=&gsm=&catename=pcindexhot&islist=&querylist="];
+    
+    // 2. 从 imageUrl 中读取数据(下载图片) -- 耗时操作
+    NSData *imageData = [NSData dataWithContentsOfURL:imageUrl];
+    // 通过二进制 data 创建 image
+    UIImage *image = [UIImage imageWithData:imageData];
+    // 3. 回到主线程进行图片赋值和界面刷新
+    [self performSelectorOnMainThread:@selector(refreshOnMainThread:) withObject:image waitUntilDone:YES];
+}
+
+/**
+ * 回到主线程进行图片赋值和界面刷新
+ */
+- (void)refreshOnMainThread:(UIImage *)image {
+    NSLog(@"current thread -- %@", [NSThread currentThread]);
+    // 赋值图片到imageview
+    self.imageView.image = image;
+}
+
+```
+### NSThread 线程安全和线程同步
+`线程安全`：如果你的代码所在的进程中有多个线程在同时运行，而这些线程可能会同时运行这段代码。如果每次运行结果和单线程运行的结果是一样的，而且其他的变量的值也和预期的是一样的，就是线程安全的。
+若每个线程中对全局变量、静态变量只有读操作，而无写操作，一般来说，这个全局变量是线程安全的；若有多个线程同时执行写操作（更改变量），一般都需要考虑线程同步，否则的话就可能影响线程安全。
+
+`线程同步`：可理解为线程 A 和 线程 B 一块配合，A 执行到一定程度时要依靠线程 B 的某个结果，于是停下来，示意 B 运行；B 依言执行，再将结果给 A；A 再继续操作。
+举个简单例子就是：两个人在一起聊天。两个人不能同时说话，避免听不清(操作冲突)。等一个人说完(一个线程结束操作)，另一个再说(另一个线程再开始操作)。
+下面，我们模拟火车票售卖的方式，实现 NSThread 线程安全和解决线程同步问题。
+场景：总共有50张火车票，有两个售卖火车票的窗口，一个是北京火车票售卖窗口，另一个是上海火车票售卖窗口。两个窗口同时售卖火车票，卖完为止。
+```
+- (void)initTicketStatusNotSave {
+    self.num = 50;
+    NSThread *thread = [[NSThread alloc]initWithTarget:self selector:@selector(saleTicket) object:nil];
+    thread.name = @"北京窗口";
+    [thread start];
+    
+    NSThread *thread_s= [[NSThread alloc]initWithTarget:self selector:@selector(saleTicket) object:nil];
+    thread_s.name = @"上海窗口";
+    [thread_s start];
+}
+- (void)unSaleTicket {
+    while (1) {
+        if (self.num > 0) {
+            self.num --;
+            NSLog(@"---当前窗口%@--剩余票数%ld", [NSThread currentThread].name, self.num);
+            [NSThread sleepForTimeInterval:0.1];
+        } else {
+            NSLog(@"---售罄----");
+            return;
+        }
+    }
+}
+- (void)saleTicket {
+    while (1) {
+        @synchronized (self) {
+            if (self.num > 0) {
+                self.num --;
+                NSLog(@"---当前窗口%@--剩余票数%ld", [NSThread currentThread].name, self.num);
+                [NSThread sleepForTimeInterval:0.1];
+            } else {
+                NSLog(@"---售罄----");
+                return;
+            }
+        }
+    }
+}
+```
+在考虑了线程安全的情况下，加锁之后，得到的票数是正确的，没有出现混乱的情况。我们也就解决了多个线程同步的问题
+### 线程的状态转换
+当我们新建一条线程NSThread *thread = [[NSThread alloc] initWithTarget:self selector:@selector(run) object:nil];，在内存中的表现为：
+![内存状态](/assets/1-1.png)
+当调用[thread start];后，系统把线程对象放入可调度线程池中，线程对象进入就绪状态，如下图所示。
+![start后](/assetes/1-2.png)
+当然，可调度线程池中，会有其他的线程对象，如下图所示。在这里我们只关心左边的线程对象
+![start后内存](/assetes/1-3.png)
+线程的状态转化
+如果CPU现在调度当前线程对象，则当前线程对象进入运行状态，如果CPU调度其他线程对象，则当前线程对象回到就绪状态。
+如果CPU在运行当前线程对象的时候调用了sleep方法\等待同步锁，则当前线程对象就进入了阻塞状态，等到sleep到时\得到同步锁，则回到就绪状态。
+如果CPU在运行当前线程对象的时候线程任务执行完毕\异常强制退出，则当前线程对象进入死亡状态。
+如同所示
+![图解](/assetes/1-4.png)

@@ -54,7 +54,7 @@
    
     
    
-    [self initTicketStatusSave];
+  //  [self initTicketStatusSave];
 }
 /**
  * 线程安全：使用 semaphore 加锁
@@ -107,7 +107,11 @@
         dispatch_semaphore_signal(_semaphoreLock);
     }
 }
++ (NSString *)testClass:(NSString *)test {
+    NSLog(@">>>>>>>>>>>>>");
 
+    return [NSString stringWithFormat:@"return%@", test];
+}
 /**
  * 非线程安全：不使用 semaphore
  * 初始化火车票数量、卖票窗口（非线程安全）、并开始卖票

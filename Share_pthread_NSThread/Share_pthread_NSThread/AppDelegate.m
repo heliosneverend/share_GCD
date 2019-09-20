@@ -1,13 +1,13 @@
 //
 //  AppDelegate.m
-//  S_GCD
+//  Share_pthread_NSThread
 //
-//  Created by helios on 2019/9/19.
+//  Created by helios on 2019/9/20.
 //  Copyright © 2019 helios. All rights reserved.
 //
 
 #import "AppDelegate.h"
-#import "ViewController.h"
+
 @interface AppDelegate ()
 
 @end
@@ -17,8 +17,6 @@
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     // Override point for customization after application launch.
-    NSString *test = [ViewController testClass:@"test"];\
-    NSLog(@"AppDelegate%@", test);
     return YES;
 }
 

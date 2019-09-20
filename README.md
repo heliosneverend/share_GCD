@@ -997,12 +997,12 @@ NSThread *current = [NSThread currentThread];
 当我们新建一条线程NSThread *thread = [[NSThread alloc] initWithTarget:self selector:@selector(run) object:nil];，在内存中的表现为：
 ![内存状态](/assets/1-1.png)
 当调用[thread start];后，系统把线程对象放入可调度线程池中，线程对象进入就绪状态，如下图所示。
-![start后](/assetes/1-2.png)
+![start后](/assets/1-2.png)
 当然，可调度线程池中，会有其他的线程对象，如下图所示。在这里我们只关心左边的线程对象
-![start后内存](/assetes/1-3.png)
+![start后内存](/assets/1-3.png)
 线程的状态转化
 如果CPU现在调度当前线程对象，则当前线程对象进入运行状态，如果CPU调度其他线程对象，则当前线程对象回到就绪状态。
 如果CPU在运行当前线程对象的时候调用了sleep方法\等待同步锁，则当前线程对象就进入了阻塞状态，等到sleep到时\得到同步锁，则回到就绪状态。
 如果CPU在运行当前线程对象的时候线程任务执行完毕\异常强制退出，则当前线程对象进入死亡状态。
 如同所示
-![图解](/assetes/1-4.png)
+![图解](/assets/1-4.png)
